@@ -5,5 +5,7 @@ const s = new mongoose.Schema({
     password: String,
     phone: { type: String, unique: true },
 }, { timestamps: true })
+
+
 module.exports = mongoose.model('User', s)
 

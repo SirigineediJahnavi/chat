@@ -1,3 +1,5 @@
 node_modules/
 chat-client/node_modules/
 chat-system/node_modules/
+chat-system/.env
+chat-system/.env.local 

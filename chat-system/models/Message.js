@@ -5,7 +5,11 @@ const MessageSchema = new mongoose.Schema({
   receiver: String,
   text: String,
   room: String,
-  read: { type: Boolean, default: false }
-}, { timestamps: true })
+  delivered: { type: Boolean, default: false }, // server got it
+  received: { type: Boolean, default: false },  // recipient's client got it
+  read: { type: Boolean, default: false }       // recipient opened chat
+}, { timestamps: true });
+
 
 module.exports = mongoose.model("Message", MessageSchema)
+

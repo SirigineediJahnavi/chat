@@ -30,4 +30,14 @@ router.post('/login', async (req, res) => {
   }
 })
 
+router.post("/check", async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const user = await User.findOne({ phone });
+    res.json({ exists: !!user });
+  } catch (e) {
+    res.status(500).json({ exists: false });
+  }
+});
+
 module.exports = router

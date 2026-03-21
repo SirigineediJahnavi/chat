@@ -4,7 +4,7 @@ const cors = require("cors")
 const http = require("http")
 const { Server } = require("socket.io")
 require("dotenv").config()
-
+const Chat = require("./models/Chat")
 const Message = require("./models/Message")
 const UserRouter = require("./routes/user")
 const ChatRouter = require("./routes/chat")
@@ -30,11 +30,33 @@ io.on("connection", (socket) => {
     console.log(`Socket ${socket.id} joined room ${room}`)
   })
 
-  socket.on("send_message", async (data) => {
-    const m = new Message(data)
-    await m.save()
-    io.to(data.room).emit("receive_message", m)
+  
+  socket.on("message_read", async ({ room, messageId, reader }) => {
+  // Verify that the reader is actually part of the room
+  const chat = await Chat.findOne({ members: { $all: room.split("_") } })
+  if (!chat || !chat.members.includes(reader)) {
+    console.log("Invalid reader, ignoring read receipt")
+    return
+  }
+  // Update DB only if valid
+  await Message.findByIdAndUpdate(messageId, { read: true })
+  io.to(room).emit("message_read", messageId)
   })
+
+  
+
+  socket.on("send_message", async (data) => {
+  const m = new Message({ ...data, delivered: true });
+  await m.save();
+  io.to(data.room).emit("receive_message", m);
+  });
+
+  socket.on("message_received", async ({ room, messageId }) => {
+    await Message.findByIdAndUpdate(messageId, { received: true });
+    io.to(room).emit("message_status", { messageId, status: "received" });
+  });
+
+  
 
   socket.on("typing_start", ({ room, user }) => {
     socket.to(room).emit("typing", user)
@@ -43,14 +65,6 @@ io.on("connection", (socket) => {
   socket.on("typing_stop", ({ room }) => {
     socket.to(room).emit("typing", "")
   })
-  socket.on("message_read", async ({ room, messageId, reader }) => {
-  // Update DB
-  await Message.findByIdAndUpdate(messageId, { read: true })
-
-  // Notify sender that this message was read
-  io.to(room).emit("message_read", messageId)
-})
-
 
   socket.on("user_online", (phone) => {
     socket.user = phone

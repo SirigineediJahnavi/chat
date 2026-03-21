@@ -34,22 +34,44 @@ export default function ChatPage({ user }) {
   }, [])
 
   const joinRoom = async () => {
-    if (!other) return
-    const r = [user.phone, other].sort().join("_")
-    setRoom(r)
-    socket.emit("join_room", r)
-    const res = await axios.post("http://localhost:5001/chat", { user1: user.phone, user2: other })
-    setList(res.data.messages || [])
-  }
+  if (!other) return;
 
-  // const send = () => {
-  //   if (!msg || !room) return
-  //   const data = { sender: user.phone, receiver: other, text: msg, room, read: false }
-  //   socket.emit("send_message", data)
-  //   setList(prev => [...prev, data]) // optimistic add
-  //   setMsg("")
-  //    socket.off("send_message")
-  // }
+  try {
+    // Check if user exists
+    const res = await axios.post("http://localhost:5001/user/check", { phone: other });
+
+    if (!res.data.exists) {
+      alert("User not found!");
+      return; // stop here, don’t go to chat page
+    }
+
+    // If user exists, proceed
+    const r = [user.phone, other].sort().join("_");
+    setRoom(r);
+    socket.emit("join_room", r);
+
+    const chatRes = await axios.post("http://localhost:5001/chat", { user1: user.phone, user2: other });
+    setList(chatRes.data.messages || []);
+  } catch (err) {
+    console.error(err);
+    alert("Error checking user");
+  }
+};
+
+// ChatPage.js
+  useEffect(() => {
+    let timeout;
+    socket.on("typing", (u) => {
+      setTypingUser(u);
+      clearTimeout(timeout);
+      if (u) {
+        timeout = setTimeout(() => setTypingUser(""), 3000);
+      }
+    });
+    return () => socket.off("typing");
+  }, []);
+
+  
   const send = () => {
   if (!msg || !room) return
   const data = { sender: user.phone, receiver: other, text: msg, room, read: false }
@@ -87,27 +109,37 @@ export default function ChatPage({ user }) {
                 }}
               >
                 <b>{m.sender}</b>: {m.text}
-                {m.sender === user.phone && (
-                  m.read ? <span style={{ color: "blue" }}> ✓✓</span> : <span> ✓✓</span>
-                )}
+              
+              {m.sender === user.phone && (
+              m.read ? <span style={{ color: "blue" }}> ✓✓</span> :
+              m.received ? <span> ✓✓</span> :
+              m.delivered ? <span> ✓</span> :
+              <span> ⏳</span>
+            )}
+
               </p>
             ))}
           </div>
 
           {typingUser && <div>{typingUser} is typing...</div>}
 
-          <input
-            placeholder="message"
-            value={msg}
-            onFocus={() => { if (room) socket.emit("typing_start", { room, user: user.phone }) }}
-            onBlur={() => { if (room) socket.emit("typing_stop", { room }) }}
-            onChange={e => setMsg(e.target.value)}
-          />
-          <button onClick={send}>Send</button>
-
           
+
+        <input
+          value={msg}
+          onChange={e => {
+            setMsg(e.target.value);
+            if (room) socket.emit("typing_start", { room, user: user.phone });
+          }}
+          onBlur={() => { if (room) socket.emit("typing_stop", { room }); }}
+        />
+
+
+
+          <button onClick={send}>Send</button>
         </>
       )}
     </div>
   )
 }
+
