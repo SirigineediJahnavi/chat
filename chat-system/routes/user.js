@@ -1,24 +1,29 @@
 const router = require('express').Router()
 const User = require('../models/User')
 
+// Signup
 router.post('/signup', async (req, res) => {
   try {
-    const { name, email } = req.body
+    const { name, email, password, phone } = req.body
+    console.log(`HI! Received signup request with body:`, req.body)
     let u = await User.findOne({ email })
-    if (u) return res.status(400).send('user exists')
-    u = new User({ name, email })
+    if (u) return res.status(400).send('Email already registered')
+    u = new User({ name, email, password, phone })
     await u.save()
     res.send(u)
   } catch (e) {
+    console.log("hi")
     res.status(500).send('error')
   }
 })
 
+
+// Login
 router.post('/login', async (req, res) => {
   try {
-    const { email } = req.body
+    const { email, password } = req.body
     const u = await User.findOne({ email })
-    if (!u) return res.status(400).send('invalid')
+    if (!u || u.password !== password) return res.status(400).send('Invalid credentials')
     res.send(u)
   } catch (e) {
     res.status(500).send('error')

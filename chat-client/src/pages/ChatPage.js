@@ -4,49 +4,108 @@ import axios from "axios"
 
 const socket = io("http://localhost:5001")
 
-export default function Chat({ user }) {
+export default function ChatPage({ user }) {
   const [other, setOther] = useState("")
-  const [otherInput, setOtherInput] = useState("")
+  const [room, setRoom] = useState("")
   const [msg, setMsg] = useState("")
   const [list, setList] = useState([])
-  const [room, setRoom] = useState("")
+  const [online, setOnline] = useState([])
+  const [typingUser, setTypingUser] = useState("")
 
-  const joinRoom = async () => {
-    setOther(otherInput)
-    const res = await axios.post("http://localhost:5001/chat", { user1: user, user2: otherInput })
-    const r = [user, otherInput].sort().join("_")
-    setRoom(r)
-    socket.emit("join_room", r)
-  }
-
-  const send = () => {
-    socket.emit("send_message", { sender: user, receiver: other, text: msg, room })
-    setMsg("")
-  }
-
+  // Online users + messages + read receipts
   useEffect(() => {
-    socket.on("receive_message", data => setList(prev => [...prev, data]))
-    return () => socket.off("receive_message")
+    socket.emit("user_online", user.phone)
+    socket.on("online_users", setOnline)
+    socket.on("receive_message", m => setList(prev => [...prev, m]))
+    socket.on("message_read", id =>
+      setList(prev => prev.map(m => m._id === id ? { ...m, read: true } : m))
+    )
+    return () => {
+      socket.off("online_users")
+      socket.off("receive_message")
+      socket.off("message_read")
+    }
+  }, [user.phone])
+
+  // Typing indicator
+  useEffect(() => {
+    socket.on("typing", u => setTypingUser(u))
+    return () => socket.off("typing")
   }, [])
 
+  const joinRoom = async () => {
+    if (!other) return
+    const r = [user.phone, other].sort().join("_")
+    setRoom(r)
+    socket.emit("join_room", r)
+    const res = await axios.post("http://localhost:5001/chat", { user1: user.phone, user2: other })
+    setList(res.data.messages || [])
+  }
+
+  // const send = () => {
+  //   if (!msg || !room) return
+  //   const data = { sender: user.phone, receiver: other, text: msg, room, read: false }
+  //   socket.emit("send_message", data)
+  //   setList(prev => [...prev, data]) // optimistic add
+  //   setMsg("")
+  //    socket.off("send_message")
+  // }
+  const send = () => {
+  if (!msg || !room) return
+  const data = { sender: user.phone, receiver: other, text: msg, room, read: false }
+  socket.emit("send_message", data)
+  setMsg("")   // don’t add to list here
+}
+
+
+  const handleRead = id => {
+    if (room)  socket.emit("message_read", { room, messageId: id, reader: user.phone })
+  }
+
+
   return (
-    <div style={{ padding: "50px" }}>
-      {!room && (
-        <div>
-          <input placeholder="Chat with" value={otherInput} onChange={e => setOtherInput(e.target.value)} />
+    <div style={{ padding: 20, background: "#e0f7ff", height: "100vh" }}>
+      {!room ? (
+        <>
+          <input placeholder="chat with" onChange={e => setOther(e.target.value)} />
           <button onClick={joinRoom}>Start Chat</button>
-        </div>
-      )}
-      {room && (
+        </>
+      ) : (
         <>
           <h2>Chat with {other}</h2>
-          <input placeholder="Message" value={msg} onChange={e => setMsg(e.target.value)} />
-          <button onClick={send}>Send</button>
-          <div>
-            {list.map((m, i) => (
-              <p key={i}><b>{m.sender}:</b> {m.text}</p>
+          <div>Online: {online.join(", ")}</div>
+          <div style={{ margin: "10px 0", maxHeight: "60vh", overflowY: "auto" }}>
+            {list.map((m, idx) => (
+              <p
+                key={m._id || `${m.sender}-${idx}`}
+                onMouseEnter={() => handleRead(m._id)}
+                style={{
+                  background: m.sender === user.phone ? "#cceeff" : "#ffffff",
+                  padding: 5,
+                  borderRadius: 5,
+                  marginBottom: 5
+                }}
+              >
+                <b>{m.sender}</b>: {m.text}
+                {m.sender === user.phone && (
+                  m.read ? <span style={{ color: "blue" }}> ✓✓</span> : <span> ✓✓</span>
+                )}
+              </p>
             ))}
           </div>
+
+          {typingUser && <div>{typingUser} is typing...</div>}
+
+          <input
+            placeholder="message"
+            value={msg}
+            onFocus={() => { if (room) socket.emit("typing_start", { room, user: user.phone }) }}
+            onBlur={() => { if (room) socket.emit("typing_stop", { room }) }}
+            onChange={e => setMsg(e.target.value)}
+          />
+          <button onClick={send}>Send</button>
+
+          
         </>
       )}
     </div>
