@@ -4,6 +4,7 @@ const s = new mongoose.Schema({
     email: { type: String, unique: true },
     password: String,
     phone: { type: String, unique: true },
+    subscription: Object,
 }, { timestamps: true })
 
 

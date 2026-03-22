@@ -3,7 +3,6 @@ const User = require('../models/User')
 
 router.post('/signup', async(req,res)=>{
     try{
-        console.log(`HI! Received signup request with body:`, req.body)
         const {name,email}=req.body
         let u = await User.findOne({email})
         if(u) return res.status(400).send('User exists')

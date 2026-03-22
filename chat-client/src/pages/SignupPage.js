@@ -11,7 +11,9 @@ export default function SignupPage({ setUser, setPage }) {
     try {
       const res = await axios.post("http://localhost:5001/user/signup", { name, email, password, phone })
       console.log('Signup response:', res.data)
-      setUser(res.data)
+      const { user, token } = res.data;
+      localStorage.setItem("token", token);
+      setUser(user)
       setPage('chat')
     } catch (e) {
       if (e.response?.status === 400) alert(e.response.data)
