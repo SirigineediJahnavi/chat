@@ -4,7 +4,6 @@ import axios from "axios"
 import SimplePeer from "simple-peer"
 
 const SOCKET_URL = "https://chitchat-ny5e.onrender.com";
-
 const API_BASE = "https://chitchat-ny5e.onrender.com";
   
 const socket = io(SOCKET_URL);
@@ -39,20 +38,16 @@ export default function ChatPage({ user }) {
   const localVideoRef = useRef(null)
   const remoteVideoRef = useRef(null)
   const callDataRef = useRef(null)
-  const alarmAudioRef = useRef(null)
   const pendingSignalsRef = useRef([])
 
   // Subscribe to notifications on mount and handle permissions
   useEffect(() => {
-    // Load important contacts from localStorage
     const saved = localStorage.getItem("importantContacts")
     if (saved) setImportantContacts(JSON.parse(saved))
 
-    // Mobile responsive
     const handleResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener("resize", handleResize)
 
-    // Request microphone permission early
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(stream => {
         console.log("Microphone permission granted")
@@ -187,24 +182,9 @@ export default function ChatPage({ user }) {
       setList(prev => prev.map(m => m._id === messageId ? { ...m, read: true } : m))
     })
 
-    // socket.on("incoming_call", ({ caller, callerName, callId, isVideoCall }) => {
-    //   setIncomingCall({ caller, callerName, callId, isVideoCall })
-    //   setIsVideoCall(isVideoCall || false)
-    //   if ("Notification" in window && Notification.permission === "granted") {
-    //     new Notification(isVideoCall ? "📹 Incoming Video Call" : "📞 Incoming Call", {
-    //       body: `${callerName} is calling...`,
-    //       icon: "/phone-icon.png",
-    //       requireInteraction: true
-    //     })
-    //   }
-    // })
-
-
-
     socket.on("incoming_call", ({ caller, callerName, callId, isVideoCall }) => {
       console.log("Incoming call payload received:", { caller, callerName, callId, isVideoCall })
       const videoFlag = Boolean(isVideoCall)
-      console.log("Setting incoming call state with videoFlag:", videoFlag)
       setIncomingCall({ caller, callerName, callId, isVideoCall: videoFlag })
       setIsVideoCall(videoFlag)
       
@@ -217,24 +197,19 @@ export default function ChatPage({ user }) {
       }
     })
 
-
-    
     socket.on("call_accepted", ({ callId }) => {
       setOnCall(true)
       setCurrentCallId(callId)
     })
 
-    // socket.on("webrtc_signal", ({ signal, from }) => {
-    //   if (peerRef.current) peerRef.current.signal(signal)
-    // })
     socket.on("webrtc_signal", ({ signal, from }) => {
-  if (peerRef.current) {
-    peerRef.current.signal(signal)
-  } else {
-    // If peer isn't created yet (user hasn't clicked accept), store the signal!
-    pendingSignalsRef.current.push(signal)
-  }
-})
+      if (peerRef.current) {
+        peerRef.current.signal(signal)
+      } else {
+        pendingSignalsRef.current.push(signal)
+      }
+    })
+
     socket.on("call_rejected", ({ callId }) => {
       if (peerRef.current) {
         peerRef.current.destroy()
@@ -381,32 +356,11 @@ export default function ChatPage({ user }) {
       setIsVideoCall(withVideo)
 
       const peer = createPeerConnection({
-        initiator: true, stream,
-        onStream: (remoteStream) => {
-          remoteStreamRef.current = remoteStream
-          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream
-          if (remoteVideoRef.current && withVideo) remoteVideoRef.current.srcObject = remoteStream
-        }
+        initiator: true, stream
       })
 
       peer.on("signal", handleSignal)
-      peer.on("stream", (remoteStream) => {
-        remoteStreamRef.current = remoteStream
-        console.log("Remote stream received successfully!", remoteStream)
-        if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStream
-        remoteAudioRef.current.play().catch(err => console.error("Audio play error:", err))
-      }
 
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream
-        console.log("Attempting to play remote video stream")
-        remoteVideoRef.current.play().catch(err => console.error("Video play error:", err))
-      }
-        // if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream
-        // if (remoteVideoRef.current && withVideo) remoteVideoRef.current.srcObject = remoteStream
-      })
-      peer.on("error", (err) => console.error("Peer error:", err))
       if (withVideo && localVideoRef.current && stream) {
         localVideoRef.current.srcObject = stream
         localVideoRef.current.play().catch(err => console.error("Local video play error:", err))
@@ -428,195 +382,47 @@ export default function ChatPage({ user }) {
     }
   }
 
-  // const acceptCall = async (withVideo = false) => {
-  //   if (!incomingCall) return
-  //   try {
-  //     const stream = await getLocalStream(withVideo)
-  //     if (!stream) {
-  //       alert("Unable to access microphone/camera. Please check permissions.")
-  //       return
-  //     }
-  //     setIsVideoCall(withVideo)
-
-  //     const peer = createPeerConnection({
-  //       initiator: false, stream,
-  //       onStream: (remoteStream) => {
-  //         remoteStreamRef.current = remoteStream
-  //         if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream
-  //         if (remoteVideoRef.current && withVideo) remoteVideoRef.current.srcObject = remoteStream
-  //       }
-  //     })
-
-  //     peer.on("signal", handleSignal)
-  //     peer.on("stream", (remoteStream) => {
-  //       remoteStreamRef.current = remoteStream
-  //       if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream
-  //       if (remoteVideoRef.current && withVideo) remoteVideoRef.current.srcObject = remoteStream
-  //     })
-  //     peer.on("error", (err) => console.error("Peer error:", err))
-
-  //     peerRef.current = peer
-  //     callDataRef.current = { initiated: false, stream, peer }
-
-  //     socket.emit("accept_call", {
-  //       callId: incomingCall.callId, callee: user.phone, caller: incomingCall.caller, isVideoCall: withVideo
-  //     })
-
-  //     setIncomingCall(null)
-  //     setOnCall(true)
-  //   } catch (err) {
-  //     console.error("Error accepting call:", err)
-  //     alert("Error accepting call: " + err.message)
-  //   }
-  // }
-
-
   const acceptCall = async (withVideo = false) => {
-  if (!incomingCall) return
-  try {
-    const stream = await getLocalStream(withVideo)
-    if (!stream) {
-      alert("Unable to access microphone/camera. Please check permissions.")
-      return
-    }
-    setIsVideoCall(withVideo)
+    if (!incomingCall) return
+    try {
+      const stream = await getLocalStream(withVideo)
+      if (!stream) {
+        alert("Unable to access microphone/camera. Please check permissions.")
+        return
+      }
+      setIsVideoCall(withVideo)
 
-    const peer = createPeerConnection({
-      initiator: false, stream
-    })
+      const peer = createPeerConnection({
+        initiator: false, stream
+      })
 
-    peerRef.current = peer
-    callDataRef.current = { initiated: false, stream, peer }
+      peerRef.current = peer
+      callDataRef.current = { initiated: false, stream, peer }
 
-    // --- ADD THIS BLOCK ---
-    // Process any signals that arrived while the phone was ringing
-    if (pendingSignalsRef.current.length > 0) {
-      pendingSignalsRef.current.forEach(sig => peer.signal(sig))
-      pendingSignalsRef.current = [] // clear the queue
-    }
-    // ----------------------
+      // CRITICAL FIX: Attach signal listener BEFORE processing pending signals
+      peer.on("signal", handleSignal)
 
-    peer.on("signal", handleSignal)
-    peer.on("stream", (remoteStream) => {
-      remoteStreamRef.current = remoteStream
-      console.log("Remote stream received successfully on accept!", remoteStream)
-      
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStream
-        remoteAudioRef.current.play().catch((err) => console.error("Audio play error:", err))
+      if (pendingSignalsRef.current.length > 0) {
+        pendingSignalsRef.current.forEach(sig => peer.signal(sig))
+        pendingSignalsRef.current = []
       }
 
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream
-        remoteVideoRef.current.play().catch((err) => console.error("Video play error:", err))
+      if (withVideo && localVideoRef.current && stream) {
+        localVideoRef.current.srcObject = stream
+        localVideoRef.current.play().catch(err => console.error("Local video play error:", err))
       }
-    })
-    peer.on("error", (err) => console.error("Peer error:", err))
 
-    if (withVideo && localVideoRef.current && stream) {
-      localVideoRef.current.srcObject = stream
-      localVideoRef.current.play().catch(err => console.error("Local video play error:", err))
+      socket.emit("accept_call", {
+        callId: incomingCall.callId, callee: user.phone, caller: incomingCall.caller, isVideoCall: withVideo
+      })
+
+      setIncomingCall(null)
+      setOnCall(true)
+    } catch (err) {
+      console.error("Error accepting call:", err)
+      alert("Error accepting call: " + err.message)
     }
-
-    socket.emit("accept_call", {
-      callId: incomingCall.callId, callee: user.phone, caller: incomingCall.caller, isVideoCall: withVideo
-    })
-
-    setIncomingCall(null)
-    setOnCall(true)
-  } catch (err) {
-    console.error("Error accepting call:", err)
-    alert("Error accepting call: " + err.message)
   }
-}
-
-
-  // const acceptCall = async (withVideo = false) => {
-  //   if (!incomingCall) return
-  //   try {
-  //     const stream = await getLocalStream(withVideo)
-  //     if (!stream) {
-  //       alert("Unable to access microphone/camera. Please check permissions.")
-  //       return
-  //     }
-  //     setIsVideoCall(withVideo)
-
-  //     const peer = createPeerConnection({
-  //       initiator: false, stream
-  //     })
-
-  //     peer.on("signal", handleSignal)
-  //     peer.on("stream", (remoteStream) => {
-  //       remoteStreamRef.current = remoteStream
-  //       console.log("Remote stream received successfully on accept!", remoteStream)
-        
-  //       if (remoteAudioRef.current) {
-  //         remoteAudioRef.current.srcObject = remoteStream
-  //         remoteAudioRef.current.play().catch((err) => console.error("Audio play error:", err))
-  //       }
-
-  //       if (remoteVideoRef.current) {
-  //         remoteVideoRef.current.srcObject = remoteStream
-  //         remoteVideoRef.current.play().catch((err) => console.error("Video play error:", err))
-  //       }
-  //     })
-  //     peer.on("error", (err) => console.error("Peer error:", err))
-
-  //     if (withVideo && localVideoRef.current && stream) {
-  //       localVideoRef.current.srcObject = stream
-  //       localVideoRef.current.play().catch(err => console.error("Local video play error:", err))
-  //     }
-
-  //     peerRef.current = peer
-  //     callDataRef.current = { initiated: false, stream, peer }
-
-  //     socket.emit("accept_call", {
-  //       callId: incomingCall.callId, callee: user.phone, caller: incomingCall.caller, isVideoCall: withVideo
-  //     })
-
-  //     setIncomingCall(null)
-  //     setOnCall(true)
-  //   } catch (err) {
-  //     console.error("Error accepting call:", err)
-  //     alert("Error accepting call: " + err.message)
-  //   }
-  // }
-
-  // const getLocalStream = async (withVideo = false) => {
-  //   try {
-  //     const constraints = {
-  //       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  //       video: withVideo ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false
-  //     }
-  //     const stream = await navigator.mediaDevices.getUserMedia(constraints)
-  //     localStreamRef.current = stream
-  //     console.log("Local stream acquired", withVideo ? "with video" : "audio only")
-  //     console.log("Local stream tracks:", stream.getTracks().map(track => track.kind + ": " + track.label))
-  //     console.log("Local stream constraints:", stream)
-  //     if (withVideo && localVideoRef.current) localVideoRef.current.srcObject = stream
-  //     else if (localAudioRef.current) localAudioRef.current.srcObject = stream
-  //     console.log("Local stream acquired", withVideo ? "with video" : "audio only")
-  //     return stream
-  //   } catch (err) {
-  //     console.error("Error accessing audio/video:", err)
-  //     if (err.name === "NotAllowedError") console.error("Permission denied - please allow camera/microphone access in browser settings")
-  //     else if (err.name === "NotFoundError") console.error("No camera/microphone found")
-  //     return null
-  //   }
-  // }
-
-  // const createPeerConnection = ({ initiator, stream }) => {
-  //   return new SimplePeer({
-  //     initiator, trickleIce: true, stream,
-  //     config: {
-  //       iceServers: [
-  //         { urls: "stun:stun.l.google.com:19302" },
-  //         { urls: "stun:stun1.l.google.com:19302" }
-  //       ]
-  //     }
-  //   })
-  // }
-
 
   const getLocalStream = async (withVideo = false) => {
     try {
@@ -631,12 +437,11 @@ export default function ChatPage({ user }) {
       return stream
     } catch (err) {
       console.warn("Video device locked/unavailable, falling back to audio-only:", err)
-      // Fallback: if video fails due to hardware lock, try getting audio-only so the call doesn't drop
       if (withVideo) {
         try {
           const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
           localStreamRef.current = audioStream
-          setIsVideoCall(false) // Switch to audio mode to salvage the call
+          setIsVideoCall(false)
           alert("Webcam is busy or locked by another app. Connected with audio instead.")
           return audioStream
         } catch (audioErr) {
@@ -660,18 +465,27 @@ export default function ChatPage({ user }) {
       }
     })
 
-    // ADD THIS EVENT LISTENER:
     peer.on("stream", (remoteStream) => {
       console.log("Remote stream received successfully!", remoteStream)
       remoteStreamRef.current = remoteStream
       
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = remoteStream
-        // Force play to overcome browser autoplay restrictions
         remoteAudioRef.current.play().catch((err) => {
           console.error("Audio autoplay failed:", err)
         })
       }
+
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream
+        remoteVideoRef.current.play().catch((err) => {
+          console.error("Video autoplay failed:", err)
+        })
+      }
+    })
+
+    peer.on("error", (err) => {
+      console.error("SimplePeer error:", err)
     })
 
     return peer
@@ -680,10 +494,6 @@ export default function ChatPage({ user }) {
   const handleSignal = (data) => {
     if (!sel) return
     socket.emit("webrtc_signal", { to: sel.phone, signal: data, from: user.phone })
-  }
-
-  const addSignal = (signal) => {
-    if (peerRef.current) peerRef.current.signal(signal)
   }
 
   const rejectCall = () => {
@@ -726,39 +536,27 @@ export default function ChatPage({ user }) {
   return (
     <div style={{ display: "flex", height: "100vh", position: "relative" }}>
       
-      {/* Hidden audio elements for call streams */}
-      <audio ref={localAudioRef} autoPlay playsInline />
+      {/* Hidden audio elements for call streams - local is MUTED to prevent echo */}
+      <audio ref={localAudioRef} autoPlay playsInline muted />
       <audio ref={remoteAudioRef} autoPlay playsInline />
       
       {/* INCOMING CALL NOTIFICATION */}
       {incomingCall && (
         <div className="glass-panel" style={{
-          position: "fixed",
-          top: 20,
-          left: "50%",
-          transform: "translateX(-50%)",
-          borderRadius: 24,
-          padding: 20,
-          zIndex: 1000,
-          minWidth: 300,
-          textAlign: "center"
+          position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", borderRadius: 24, padding: 20, zIndex: 1000, minWidth: 300, textAlign: "center"
         }}>
           <h2 style={{ color: "#0c4a6e" }}>📞 Incoming Call</h2>
           <p style={{ fontSize: 16, marginBottom: 15, color: "#0c4a6e" }}>{incomingCall.callerName} is {incomingCall.isVideoCall ? "📹 video " : ""}calling...</p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => acceptCall(incomingCall.isVideoCall)}
-              style={{
-                padding: "10px 20px", backgroundColor: "#25D366", color: "white", border: "none", borderRadius: 20, cursor: "pointer", fontWeight: "bold", fontSize: 14
-              }}
+              style={{ padding: "10px 20px", backgroundColor: "#25D366", color: "white", border: "none", borderRadius: 20, cursor: "pointer", fontWeight: "bold", fontSize: 14 }}
             >
               ✓ Accept {incomingCall.isVideoCall ? "Video" : "Audio"}
             </button>
             <button
               onClick={rejectCall}
-              style={{
-                padding: "10px 20px", backgroundColor: "#FF4444", color: "white", border: "none", borderRadius: 20, cursor: "pointer", fontWeight: "bold", fontSize: 14
-              }}
+              style={{ padding: "10px 20px", backgroundColor: "#FF4444", color: "white", border: "none", borderRadius: 20, cursor: "pointer", fontWeight: "bold", fontSize: 14 }}
             >
               ✕ Reject
             </button>
@@ -769,45 +567,19 @@ export default function ChatPage({ user }) {
       {/* ON CALL INDICATOR */}
       {onCall && (
         <div className="glass-panel" style={{
-          position: "fixed",
-          top: 20,
-          left: isMobile ? 10 : "50%",
-          transform: isMobile ? "none" : "translateX(-50%)",
-          padding: "10px 20px",
-          borderRadius: 20,
-          zIndex: 999,
-          width: isMobile ? "90%" : "auto",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          color: "#0c4a6e",
-          fontWeight: "bold"
+          position: "fixed", top: 20, left: isMobile ? 10 : "50%", transform: isMobile ? "none" : "translateX(-50%)", padding: "10px 20px", borderRadius: 20, zIndex: 999, width: isMobile ? "90%" : "auto", display: "flex", alignItems: "center", justifyContent: "space-between", color: "#0c4a6e", fontWeight: "bold"
         }}>
           <span>{isVideoCall ? "📹 Video Call" : "📞 Audio Call"} with {sel?.name}</span>
           <button
             onClick={endCall}
-            style={{
-              marginLeft: 15, padding: "5px 15px", backgroundColor: "#FF4444", color: "white", border: "none", borderRadius: 15, cursor: "pointer"
-            }}
+            style={{ marginLeft: 15, padding: "5px 15px", backgroundColor: "#FF4444", color: "white", border: "none", borderRadius: 15, cursor: "pointer" }}
           >
             End Call
           </button>
         </div>
       )}
 
-      {/* VIDEO DISPLAY AREA DURING CALL */}
-      {/* {onCall && isVideoCall && (
-        <div className="glass-panel" style={{
-          position: "fixed", bottom: 20, right: 20, width: isMobile ? "100%" : 300, height: isMobile ? "100%" : 300, borderRadius: 24, overflow: "hidden", zIndex: 998
-        }}>
-          <video ref={remoteVideoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          <video
-            ref={localVideoRef} autoPlay playsInline muted
-            style={{ position: "absolute", bottom: 10, right: 10, width: isMobile ? 100 : 150, height: isMobile ? 100 : 150, borderRadius: 16, border: "2px solid rgba(255,255,255,0.5)" }}
-          />
-        </div>
-      )} */}
-      {/* VIDEO DISPLAY AREA - ALWAYS MOUNTED */}
+      {/* VIDEO DISPLAY AREA */}
       <div className="glass-panel" style={{
         position: "fixed", bottom: 20, right: 20, width: isMobile ? "100%" : 300, height: isMobile ? "100%" : 300, borderRadius: 24, overflow: "hidden", zIndex: 998,
         display: onCall && isVideoCall ? "block" : "none"
@@ -832,7 +604,6 @@ export default function ChatPage({ user }) {
       }}>
         <h3 style={{ color: "#0369a1" }}>💬 Chats</h3>
         
-        {/* Search bar */}
         <div style={{ marginBottom: 15 }}>
           <input
             type="tel" placeholder="Search by phone" value={search}
@@ -848,7 +619,6 @@ export default function ChatPage({ user }) {
           </button>
         </div>
 
-        {/* Search result */}
         {searchResult && (
           <div
             className="glass-panel"
@@ -864,7 +634,6 @@ export default function ChatPage({ user }) {
           </div>
         )}
 
-        {/* Chat list */}
         <div style={{ marginTop: 15 }}>
           <h4 style={{ color: "#0369a1" }}>Recent Chats</h4>
           {arr.length === 0 ? (
@@ -901,7 +670,6 @@ export default function ChatPage({ user }) {
       }}>
         {sel ? (
           <>
-            {/* HEADER WITH CALL OPTION */}
             <div style={{ 
               borderBottom: "1px solid rgba(255,255,255,0.4)", paddingBottom: 10, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10
             }}>
@@ -941,7 +709,6 @@ export default function ChatPage({ user }) {
               </div>
             </div>
 
-            {/* Messages area */}
             <div className="glass-panel" style={{ 
               flex: 1, overflowY: "auto", marginBottom: 15, padding: 20, borderRadius: 24, display: "flex", flexDirection: "column"
             }}>
@@ -976,7 +743,6 @@ export default function ChatPage({ user }) {
               </div>
             )}
 
-            {/* Message Input */}
             <div style={{ display: "flex", gap: 10, flexDirection: isMobile ? "column" : "row" }}>
               <div style={{ display: "flex", gap: 8, flex: 1 }}>
                 <input
@@ -1008,7 +774,6 @@ export default function ChatPage({ user }) {
               </button>
             </div>
 
-            {/* Schedule Message Form */}
             {showScheduleMsg && (
               <div className="glass-panel" style={{ padding: 15, borderRadius: 24, marginTop: 10 }}>
                 <h4 style={{ marginTop: 0, color: "#0369a1" }}>Schedule Message</h4>
