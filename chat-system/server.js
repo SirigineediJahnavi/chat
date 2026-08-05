@@ -24,8 +24,7 @@ const server = http.createServer(app);
 
 app.use(cors({
   origin: [
-    "http://localhost:3000",
-    "https://chat-silk-one.vercel.app",
+    
     "https://chit-chat-zeta-five.vercel.app"
   ],
   credentials: true
@@ -45,8 +44,6 @@ mongoose.connect(process.env.MONGO_URI)
 const io = new Server(server, { 
   cors: { 
     origin: [
-      "http://localhost:3000",
-      "https://chat-silk-one.vercel.app",
       "https://chit-chat-zeta-five.vercel.app"
     ],
     credentials: true 
