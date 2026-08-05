@@ -486,7 +486,7 @@ export default function ChatPage({ user }) {
 
   const createPeerConnection = ({ initiator, stream }) => {
     const peer = new SimplePeer({
-      initiator, 
+      initiator:true, 
       trickleIce: true, 
       stream,
       config: {
