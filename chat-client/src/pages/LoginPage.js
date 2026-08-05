@@ -1,13 +1,18 @@
 import { useState } from "react";
 import axios from "axios";
 
+const API_BASE = window.location.hostname === "localhost" 
+  ? "http://localhost:5001" 
+  : "https://chitchat-ny5e.onrender.com";
+
+
 export default function LoginPage({ setUser, setPage }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const login = async () => {
     try {
-      const res = await axios.post("http://localhost:5001/user/login", { email, password });
+      const res = await axios.post(`${API_BASE}/user/login`, { email, password });
       console.log("Login response:", res.data);
       const { user, token } = res.data;
       localStorage.setItem("token", token);
