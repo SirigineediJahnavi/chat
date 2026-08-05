@@ -4,6 +4,14 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+window.global = window;
+window.process = {
+  env: {},
+  nextTick: (callback, ...args) => {
+    queueMicrotask(() => callback(...args));
+  }
+};
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>

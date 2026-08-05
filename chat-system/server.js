@@ -125,15 +125,30 @@ io.on("connection", (socket) => {
   });
 
   // CALL FEATURE
-  socket.on("initiate_call", ({ caller, callee, callerName }) => {
+  // socket.on("initiate_call", ({ caller, callee, callerName }) => {
+  //   const calleeSocket = userSockets[callee];
+  //   if (calleeSocket) {
+  //     io.to(calleeSocket).emit("incoming_call", { 
+  //       caller, 
+  //       callerName,
+  //       callId: `${caller}_${Date.now()}`
+  //     });
+  //     console.log(`Call initiated from ${caller} to ${callee}`);
+  //   } else {
+  //     socket.emit("call_failed", { message: "User is offline" });
+  //   }
+  // });
+
+  socket.on("initiate_call", ({ caller, callee, callerName, isVideoCall }) => {
     const calleeSocket = userSockets[callee];
     if (calleeSocket) {
       io.to(calleeSocket).emit("incoming_call", { 
         caller, 
         callerName,
-        callId: `${caller}_${Date.now()}`
+        callId: `${caller}_${Date.now()}`,
+        isVideoCall // <-- Add this right here!
       });
-      console.log(`Call initiated from ${caller} to ${callee}`);
+      console.log(`Call initiated from ${caller} to ${callee} (Video: ${isVideoCall})`);
     } else {
       socket.emit("call_failed", { message: "User is offline" });
     }

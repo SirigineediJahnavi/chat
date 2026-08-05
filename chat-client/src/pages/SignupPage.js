@@ -22,16 +22,33 @@ export default function SignupPage({ setUser, setPage }) {
   }
 
   return (
-    <div style={{ padding: 50, background: "#e0f7ff", minHeight: "100vh" }}>
-      <h2>Signup</h2>
-      <input placeholder="Name" onChange={e => setName(e.target.value)} /><br /><br />
-      <input placeholder="Email" onChange={e => setEmail(e.target.value)} /><br /><br />
-      <input placeholder="Password" type="password" onChange={e => setPassword(e.target.value)} /><br /><br />
-      <input placeholder="Phone Number" onChange={e => setPhone(e.target.value)} /><br /><br />
-      <button onClick={signup}>Signup</button>
-      <p style={{ marginTop: 10 }}>
-        Already registered? <span style={{ color: "blue", cursor: "pointer" }} onClick={() => setPage('login')}>Login</span>
-      </p>
+    <div className="auth-container">
+      <div className="glass-panel auth-box">
+        <h2 style={{ color: "#0369a1", marginBottom: 20 }}>Signup</h2>
+        <input style={{ width: "100%" }} placeholder="Name" onChange={e => setName(e.target.value)} /><br /><br />
+        <input style={{ width: "100%" }} placeholder="Email" onChange={e => setEmail(e.target.value)} /><br /><br />
+        <input style={{ width: "100%" }} placeholder="Password" type="password" onChange={e => setPassword(e.target.value)} /><br /><br />
+        <input style={{ width: "100%" }} placeholder="Phone Number" onChange={e => setPhone(e.target.value)} /><br /><br />
+        <button 
+          onClick={signup}
+          style={{
+            padding: "10px 24px",
+            background: "#0ea5e9",
+            color: "white",
+            border: "none",
+            borderRadius: "20px",
+            cursor: "pointer",
+            fontWeight: "bold",
+            width: "100%",
+            boxShadow: "0 4px 6px rgba(14, 165, 233, 0.2)"
+          }}
+        >
+          Signup
+        </button>
+        <p style={{ marginTop: 20, color: "#334155" }}>
+          Already registered? <span style={{ color: "#0284c7", cursor: "pointer", fontWeight: "bold" }} onClick={() => setPage('login')}>Login</span>
+        </p>
+      </div>
     </div>
   )
 }
