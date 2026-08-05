@@ -424,6 +424,34 @@ export default function ChatPage({ user }) {
     }
   }
 
+  // const getLocalStream = async (withVideo = false) => {
+  //   try {
+  //     const constraints = {
+  //       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+  //       video: withVideo ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false
+  //     }
+  //     const stream = await navigator.mediaDevices.getUserMedia(constraints)
+  //     localStreamRef.current = stream
+  //     if (withVideo && localVideoRef.current) localVideoRef.current.srcObject = stream
+  //     else if (localAudioRef.current) localAudioRef.current.srcObject = stream
+  //     return stream
+  //   } catch (err) {
+  //     console.warn("Video device locked/unavailable, falling back to audio-only:", err)
+  //     if (withVideo) {
+  //       try {
+  //         const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  //         localStreamRef.current = audioStream
+  //         setIsVideoCall(false)
+  //         alert("Webcam is busy or locked by another app. Connected with audio instead.")
+  //         return audioStream
+  //       } catch (audioErr) {
+  //         console.error("Audio fallback also failed:", audioErr)
+  //       }
+  //     }
+  //     return null
+  //   }
+  // }
+
   const getLocalStream = async (withVideo = false) => {
     try {
       const constraints = {
@@ -432,8 +460,12 @@ export default function ChatPage({ user }) {
       }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       localStreamRef.current = stream
-      if (withVideo && localVideoRef.current) localVideoRef.current.srcObject = stream
-      else if (localAudioRef.current) localAudioRef.current.srcObject = stream
+      
+      // ONLY assign to video if it's a video call. Do NOT assign local mic to an audio element!
+      if (withVideo && localVideoRef.current) {
+        localVideoRef.current.srcObject = stream
+      }
+      
       return stream
     } catch (err) {
       console.warn("Video device locked/unavailable, falling back to audio-only:", err)
@@ -503,6 +535,28 @@ export default function ChatPage({ user }) {
     pendingSignalsRef.current = []
   }
 
+  // const endCall = () => {
+  //   if (!sel || !currentCallId) return
+  //   if (peerRef.current) {
+  //     peerRef.current.destroy()
+  //     peerRef.current = null
+  //   }
+  //   if (localStreamRef.current) {
+  //     localStreamRef.current.getTracks().forEach(track => track.stop())
+  //     localStreamRef.current = null
+  //   }
+  //   if (remoteStreamRef.current) {
+  //     remoteStreamRef.current.getTracks().forEach(track => track.stop())
+  //     remoteStreamRef.current = null
+  //   }
+  //   if (localAudioRef.current) localAudioRef.current.srcObject = null
+  //   if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null
+  //   callDataRef.current = null
+  //   socket.emit("end_call", { callId: currentCallId, otherUser: sel.phone })
+  //   setOnCall(false)
+  //   setCurrentCallId(null)
+  //   pendingSignalsRef.current = []
+  // }
   const endCall = () => {
     if (!sel || !currentCallId) return
     if (peerRef.current) {
@@ -517,7 +571,7 @@ export default function ChatPage({ user }) {
       remoteStreamRef.current.getTracks().forEach(track => track.stop())
       remoteStreamRef.current = null
     }
-    if (localAudioRef.current) localAudioRef.current.srcObject = null
+    // Remove localAudioRef cleanup here since we aren't using it
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null
     callDataRef.current = null
     socket.emit("end_call", { callId: currentCallId, otherUser: sel.phone })
@@ -537,7 +591,7 @@ export default function ChatPage({ user }) {
     <div style={{ display: "flex", height: "100vh", position: "relative" }}>
       
       {/* Hidden audio elements for call streams - local is MUTED to prevent echo */}
-      <audio ref={localAudioRef} autoPlay playsInline muted />
+      {/* <audio ref={localAudioRef} autoPlay playsInline muted /> */}
       <audio ref={remoteAudioRef} autoPlay playsInline />
       
       {/* INCOMING CALL NOTIFICATION */}
