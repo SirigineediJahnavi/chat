@@ -3,7 +3,11 @@ import { io } from "socket.io-client"
 import axios from "axios"
 import SimplePeer from "simple-peer"
 
-const socket = io("http://localhost:5001")
+const SOCKET_URL = "https://chitchat-ny5e.onrender.com";
+
+const API_BASE = "https://chitchat-ny5e.onrender.com";
+  
+const socket = io(SOCKET_URL);
 
 export default function ChatPage({ user }) {
   const [arr, setArr] = useState([]) // Chat list
@@ -36,6 +40,7 @@ export default function ChatPage({ user }) {
   const remoteVideoRef = useRef(null)
   const callDataRef = useRef(null)
   const alarmAudioRef = useRef(null)
+  const pendingSignalsRef = useRef([])
 
   // Subscribe to notifications on mount and handle permissions
   useEffect(() => {
@@ -86,7 +91,7 @@ export default function ChatPage({ user }) {
               })
               .then(subscription => {
                 if (subscription) {
-                  axios.post("http://localhost:5001/user/subscribe", {
+                  axios.post(`${API_BASE}/user/subscribe`, {
                     phone: user.phone,
                     subscription: subscription
                   }).catch(err => console.log("Subscription save error:", err))
@@ -118,7 +123,7 @@ export default function ChatPage({ user }) {
     const f = async () => {
       const token = localStorage.getItem("token");
       try {
-        const res = await axios.get("http://localhost:5001/chat/getChats", {
+        const res = await axios.get(`${API_BASE}/chat/getChats`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         setArr(res.data)
@@ -135,7 +140,7 @@ export default function ChatPage({ user }) {
     socket.emit("join_room", r)
     const token = localStorage.getItem("token");
     try {
-      const res = await axios.get(`http://localhost:5001/chat/getMessages/${u.phone}`, {
+      const res = await axios.get(`${API_BASE}/chat/getMessages/${u.phone}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setList(res.data)
@@ -219,10 +224,17 @@ export default function ChatPage({ user }) {
       setCurrentCallId(callId)
     })
 
+    // socket.on("webrtc_signal", ({ signal, from }) => {
+    //   if (peerRef.current) peerRef.current.signal(signal)
+    // })
     socket.on("webrtc_signal", ({ signal, from }) => {
-      if (peerRef.current) peerRef.current.signal(signal)
-    })
-
+  if (peerRef.current) {
+    peerRef.current.signal(signal)
+  } else {
+    // If peer isn't created yet (user hasn't clicked accept), store the signal!
+    pendingSignalsRef.current.push(signal)
+  }
+})
     socket.on("call_rejected", ({ callId }) => {
       if (peerRef.current) {
         peerRef.current.destroy()
@@ -294,7 +306,7 @@ export default function ChatPage({ user }) {
     if (!search) return
     const token = localStorage.getItem("token");
     try {
-      const res = await axios.post("http://localhost:5001/chat/searchUser", 
+      const res = await axios.post(`${API_BASE}/chat/searchUser`, 
         { phone: search }, { headers: { Authorization: `Bearer ${token}` } }
       )
       setSearchResult(res.data)
@@ -344,7 +356,7 @@ export default function ChatPage({ user }) {
     if (!sel || !scheduleTime || !scheduleMsg) return
     try {
       const token = localStorage.getItem("token")
-      await axios.post("http://localhost:5001/chat/scheduleMessage", {
+      await axios.post(`${API_BASE}/chat/scheduleMessage`, {
         sender: user.phone, receiver: sel.phone, text: scheduleMsg, scheduledTime: scheduleTime
       }, { headers: { Authorization: `Bearer ${token}` } })
       
@@ -458,56 +470,117 @@ export default function ChatPage({ user }) {
   //   }
   // }
 
+
   const acceptCall = async (withVideo = false) => {
-    if (!incomingCall) return
-    try {
-      const stream = await getLocalStream(withVideo)
-      if (!stream) {
-        alert("Unable to access microphone/camera. Please check permissions.")
-        return
-      }
-      setIsVideoCall(withVideo)
-
-      const peer = createPeerConnection({
-        initiator: false, stream
-      })
-
-      peer.on("signal", handleSignal)
-      peer.on("stream", (remoteStream) => {
-        remoteStreamRef.current = remoteStream
-        console.log("Remote stream received successfully on accept!", remoteStream)
-        
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = remoteStream
-          remoteAudioRef.current.play().catch((err) => console.error("Audio play error:", err))
-        }
-
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStream
-          remoteVideoRef.current.play().catch((err) => console.error("Video play error:", err))
-        }
-      })
-      peer.on("error", (err) => console.error("Peer error:", err))
-
-      if (withVideo && localVideoRef.current && stream) {
-        localVideoRef.current.srcObject = stream
-        localVideoRef.current.play().catch(err => console.error("Local video play error:", err))
-      }
-
-      peerRef.current = peer
-      callDataRef.current = { initiated: false, stream, peer }
-
-      socket.emit("accept_call", {
-        callId: incomingCall.callId, callee: user.phone, caller: incomingCall.caller, isVideoCall: withVideo
-      })
-
-      setIncomingCall(null)
-      setOnCall(true)
-    } catch (err) {
-      console.error("Error accepting call:", err)
-      alert("Error accepting call: " + err.message)
+  if (!incomingCall) return
+  try {
+    const stream = await getLocalStream(withVideo)
+    if (!stream) {
+      alert("Unable to access microphone/camera. Please check permissions.")
+      return
     }
+    setIsVideoCall(withVideo)
+
+    const peer = createPeerConnection({
+      initiator: false, stream
+    })
+
+    peerRef.current = peer
+    callDataRef.current = { initiated: false, stream, peer }
+
+    // --- ADD THIS BLOCK ---
+    // Process any signals that arrived while the phone was ringing
+    if (pendingSignalsRef.current.length > 0) {
+      pendingSignalsRef.current.forEach(sig => peer.signal(sig))
+      pendingSignalsRef.current = [] // clear the queue
+    }
+    // ----------------------
+
+    peer.on("signal", handleSignal)
+    peer.on("stream", (remoteStream) => {
+      remoteStreamRef.current = remoteStream
+      console.log("Remote stream received successfully on accept!", remoteStream)
+      
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = remoteStream
+        remoteAudioRef.current.play().catch((err) => console.error("Audio play error:", err))
+      }
+
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream
+        remoteVideoRef.current.play().catch((err) => console.error("Video play error:", err))
+      }
+    })
+    peer.on("error", (err) => console.error("Peer error:", err))
+
+    if (withVideo && localVideoRef.current && stream) {
+      localVideoRef.current.srcObject = stream
+      localVideoRef.current.play().catch(err => console.error("Local video play error:", err))
+    }
+
+    socket.emit("accept_call", {
+      callId: incomingCall.callId, callee: user.phone, caller: incomingCall.caller, isVideoCall: withVideo
+    })
+
+    setIncomingCall(null)
+    setOnCall(true)
+  } catch (err) {
+    console.error("Error accepting call:", err)
+    alert("Error accepting call: " + err.message)
   }
+}
+
+
+  // const acceptCall = async (withVideo = false) => {
+  //   if (!incomingCall) return
+  //   try {
+  //     const stream = await getLocalStream(withVideo)
+  //     if (!stream) {
+  //       alert("Unable to access microphone/camera. Please check permissions.")
+  //       return
+  //     }
+  //     setIsVideoCall(withVideo)
+
+  //     const peer = createPeerConnection({
+  //       initiator: false, stream
+  //     })
+
+  //     peer.on("signal", handleSignal)
+  //     peer.on("stream", (remoteStream) => {
+  //       remoteStreamRef.current = remoteStream
+  //       console.log("Remote stream received successfully on accept!", remoteStream)
+        
+  //       if (remoteAudioRef.current) {
+  //         remoteAudioRef.current.srcObject = remoteStream
+  //         remoteAudioRef.current.play().catch((err) => console.error("Audio play error:", err))
+  //       }
+
+  //       if (remoteVideoRef.current) {
+  //         remoteVideoRef.current.srcObject = remoteStream
+  //         remoteVideoRef.current.play().catch((err) => console.error("Video play error:", err))
+  //       }
+  //     })
+  //     peer.on("error", (err) => console.error("Peer error:", err))
+
+  //     if (withVideo && localVideoRef.current && stream) {
+  //       localVideoRef.current.srcObject = stream
+  //       localVideoRef.current.play().catch(err => console.error("Local video play error:", err))
+  //     }
+
+  //     peerRef.current = peer
+  //     callDataRef.current = { initiated: false, stream, peer }
+
+  //     socket.emit("accept_call", {
+  //       callId: incomingCall.callId, callee: user.phone, caller: incomingCall.caller, isVideoCall: withVideo
+  //     })
+
+  //     setIncomingCall(null)
+  //     setOnCall(true)
+  //   } catch (err) {
+  //     console.error("Error accepting call:", err)
+  //     alert("Error accepting call: " + err.message)
+  //   }
+  // }
 
   // const getLocalStream = async (withVideo = false) => {
   //   try {
@@ -617,6 +690,7 @@ export default function ChatPage({ user }) {
     if (!incomingCall) return
     socket.emit("reject_call", { callId: incomingCall.callId, caller: incomingCall.caller })
     setIncomingCall(null)
+    pendingSignalsRef.current = []
   }
 
   const endCall = () => {
@@ -639,6 +713,7 @@ export default function ChatPage({ user }) {
     socket.emit("end_call", { callId: currentCallId, otherUser: sel.phone })
     setOnCall(false)
     setCurrentCallId(null)
+    pendingSignalsRef.current = []
   }
 
   const renderMessageStatus = (m) => {
@@ -652,9 +727,9 @@ export default function ChatPage({ user }) {
     <div style={{ display: "flex", height: "100vh", position: "relative" }}>
       
       {/* Hidden audio elements for call streams */}
-      <audio ref={localAudioRef} muted autoPlay playsInline />
+      <audio ref={localAudioRef} autoPlay playsInline />
       <audio ref={remoteAudioRef} autoPlay playsInline />
-
+      
       {/* INCOMING CALL NOTIFICATION */}
       {incomingCall && (
         <div className="glass-panel" style={{

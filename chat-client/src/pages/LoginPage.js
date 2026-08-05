@@ -1,9 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 
-const API_BASE = window.location.hostname === "localhost" 
-  ? "http://localhost:5001" 
-  : "https://chitchat-ny5e.onrender.com";
+const API_BASE = "https://chitchat-ny5e.onrender.com";
 
 
 export default function LoginPage({ setUser, setPage }) {

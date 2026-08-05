@@ -1,6 +1,8 @@
 import { useState } from "react"
 import axios from "axios"
 
+const API_BASE ="https://chitchat-ny5e.onrender.com";
+  
 export default function SignupPage({ setUser, setPage }) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -9,7 +11,7 @@ export default function SignupPage({ setUser, setPage }) {
 
   const signup = async () => {
     try {
-      const res = await axios.post("http://localhost:5001/user/signup", { name, email, password, phone })
+      const res = await axios.post(`${API_BASE}/user/signup`, { name, email, password, phone })
       console.log('Signup response:', res.data)
       const { user, token } = res.data;
       localStorage.setItem("token", token);
